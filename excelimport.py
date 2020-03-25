@@ -2,7 +2,6 @@ from sqlalchemy import create_engine
 import sqlite3
 engine = create_engine('sqlite://', echo=False)
 
-
 import pandas as pd
 
 df=pd.read_excel('images.xlsx')
