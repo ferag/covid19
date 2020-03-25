@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block title %}COVID-19 Training{% endblock %}
+
+{% block content %}
+    <form method="POST">
+    {{ form.csrf_token }}
+    <img src={{ form.img }} alt={{ form.img_id }}>
+    <p>
+        {{ form.type_of_diag.label }}{{ form.type_of_diag }}
+    </p>
+    <input type="submit" value="Test!!">
+    </form>
+{% endblock %}

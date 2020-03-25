@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Thanks{% endblock %}
+
+{% block content %}
+    <h1>Results</h1>
+
+    <ul>
+    <li>
+    <img src={{ image }} alt={{ image }}>
+    </li>
+    <li>
+    {{ res }}
+    </li>
+    <li><a href="/training">Next</a></li>
+    </ul>
+{% endblock %}
