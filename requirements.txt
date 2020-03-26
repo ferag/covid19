@@ -1,0 +1,5 @@
+flask
+wtforms
+requests
+Flask-OIDC
+sqlalchemy
