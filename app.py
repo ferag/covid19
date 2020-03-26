@@ -1,14 +1,23 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_wtf import Form
+from flask_oidc import OpenIDConnect
 from wtforms import SelectField, TextField
 from sqlalchemy import create_engine
 import sqlite3
 import pandas as pd
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'our very hard to guess secretfir'
+app.config.update({
+    'SECRET_KEY': 'SomethingNotEntirelySecret',
+    'TESTING': True,
+    'DEBUG': True,
+    'OIDC_CLIENT_SECRETS': 'client_secrets.json',
+    'OIDC_ID_TOKEN_COOKIE_SECURE': False,
+    'OIDC_REQUIRE_VERIFIED_EMAIL': False,
+    'OIDC_OPENID_REALM': 'http://localhost:5000/oidc_callback'
+})
+oidc = OpenIDConnect(app)
 
-BASE_PATH = '/home/aguilarf/sars-cov-2/AppTraining/examples-forms/'
 IMG_FOLDER = '/static/img/'
 
 def check_user_answer(id_image, user_answer):
@@ -32,9 +41,27 @@ def get_random_img():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    if oidc.user_loggedin:
+        return ('Hello, %s, <a href="/logged">See private</a> '
+                '<a href="/logout">Log out</a>') % \
+            oidc.user_getfield('email')
+    else:
+        return 'Welcome anonymous, <a href="/logged">Log in</a>'
+
+@app.route('/logged')
+@oidc.require_login
+def logged():
+    info = oidc.user_getinfo(['email', 'openid_id'])
+    return render_template('logged.html', email=info.get('email'), openid_id=info.get('openid_id'))
+
+@app.route('/logout')
+def logout():
+    oidc.logout()
+    return 'Hi, you have been logged out! <a href="/">Return</a>'
+
 
 @app.route('/results')
+@oidc.require_login
 def results():
     res = check_user_answer(session['messages']['id_image'], session['messages']['user_answer'])
     print(res)
@@ -50,6 +77,7 @@ class TrainingForm(Form):
     
 
 @app.route('/training', methods=['GET', 'POST'])
+@oidc.require_login
 def training():
     error = ""
     edad, img_id, img = get_random_img() #get_random
@@ -57,7 +85,8 @@ def training():
 
     if request.method == 'POST':
         type_of_diag = form.type_of_diag.data
-        session['user_id'] = 'aguilarf'
+        info = oidc.user_getinfo(['email', 'openid_id'])
+        session['user_id'] = info.get('email')
         session['messages'] = {'id_image': img_id, 'img': img, 'user_answer' : form.type_of_diag.data}
         if len(type_of_diag) == 0:
             error = "Please supply data"
@@ -74,8 +103,22 @@ def training():
                 print("Ooops! We had a problem")
                 print(e)
             return redirect(url_for('results'))
-
-    return render_template('training.html', form=form, message=error, edad=edad, img=img, img_id=img_id)
+    try:
+        info = oidc.user_getinfo(['email', 'openid_id'])
+        conn = sqlite3.connect('db/covid19.db')
+        c = conn.cursor()
+        print("SELECT COUNT(*) FROM users WHERE id='%s'" % (info.get('email')))
+        x = c.execute("SELECT COUNT(*) FROM users WHERE id='%s'" % (info.get('email')))
+        row = c.fetchone()
+        if row[0] > 0:
+            return render_template('training.html', form=form, message=error, edad=edad, img=img, img_id=img_id)
+        else:
+            return 'You are not an allowed user'
+        conn.close()
+    except Exception as e:
+        conn.close()
+        print(e)
+        return 'Ooops!, <a href="/logged">Log in</a>'
 
 # Run the application
 app.run(debug=True)
